@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>HowDoISay — Speak It Now</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --pri: #4F46E5; --pri-light: #EEF2FF;
+      --bg: #F8FAFC; --card: #fff;
+      --text: #1E293B; --muted: #64748B;
+      --green: #16a34a; --blue: #2563eb; --red: #dc2626;
+      --orange: #ea580c; --purple: #7c3aed;
+      --radius: 12px;
+    }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--text); min-height: 100dvh; display: flex; flex-direction: column; }
+
+    /* ── Header ─────────────────────────── */
+    header { background: var(--card); padding: 12px 16px; display: flex; align-items: center; justify-content: space-between; box-shadow: 0 1px 3px rgba(0,0,0,.08); position: sticky; top: 0; z-index: 10; }
+    .logo { font-weight: 800; font-size: 1.15rem; color: var(--pri); }
+    .gear-btn { background: none; border: none; font-size: 1.3rem; cursor: pointer; padding: 4px 8px; }
+
+    /* ── Tabs ────────────────────────────── */
+    .tabs { display: flex; gap: 0; background: var(--card); border-bottom: 1px solid #e2e8f0; }
+    .tab { flex: 1; padding: 10px; text-align: center; font-weight: 600; font-size: .95rem; cursor: pointer; border-bottom: 3px solid transparent; color: var(--muted); transition: .15s; }
+    .tab.active { color: var(--pri); border-bottom-color: var(--pri); }
+
+    /* ── Main Area ──────────────────────── */
+    main { flex: 1; padding: 16px; max-width: 600px; width: 100%; margin: 0 auto; }
+
+    /* ── Search ──────────────────────────── */
+    .search-wrap { position: relative; margin-bottom: 12px; }
+    .search-input { width: 100%; padding: 14px 16px 14px 44px; font-size: 1.1rem; border: 2px solid #e2e8f0; border-radius: var(--radius); background: var(--card); outline: none; transition: border-color .15s; }
+    .search-input:focus { border-color: var(--pri); }
+    .search-icon { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); font-size: 1.2rem; color: var(--muted); pointer-events: none; }
+    .clear-btn { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); background: none; border: none; font-size: 1.2rem; cursor: pointer; color: var(--muted); display: none; }
+
+    /* ── Chips ───────────────────────────── */
+    .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 16px; }
+    .chip { background: var(--pri-light); color: var(--pri); padding: 6px 12px; border-radius: 20px; font-size: .82rem; cursor: pointer; border: none; font-weight: 500; white-space: nowrap; }
+    .chip:hover { background: #ddd6fe; }
+
+    /* ── Result Card ─────────────────────── */
+    .result-card { background: var(--card); border-radius: var(--radius); padding: 20px; box-shadow: 0 2px 8px rgba(0,0,0,.06); display: none; }
+    .result-card.show { display: block; }
+
+    .res-badge { display: inline-block; font-size: .7rem; font-weight: 700; padding: 2px 8px; border-radius: 8px; margin-bottom: 8px; text-transform: uppercase; }
+    .badge-local { background: #dcfce7; color: #166534; }
+    .badge-api { background: #dbeafe; color: #1e40af; }
+    .badge-fuzzy { background: #fef9c3; color: #854d0e; }
+
+    .res-target { font-size: 1.6rem; font-weight: 700; margin-bottom: 4px; }
+    .res-pinyin { font-weight: 400; font-size: 1.1rem; color: var(--muted); }
+    .res-quick { font-size: 1.15rem; margin: 10px 0 16px; color: var(--pri); }
+    .res-quick strong { font-size: 1.25rem; }
+
+    /* ── Staircase ───────────────────────── */
+    .staircase-row { display: flex; flex-wrap: wrap; gap: 16px; justify-content: center; }
+    .syl-block { text-align: center; min-width: 60px; padding: 8px; }
+    .staircase { display: inline-flex; font-size: 1.8rem; font-weight: 800; font-family: "Courier New", monospace; letter-spacing: 2px; height: 3rem; align-items: flex-start; }
+    .stair-ch { display: inline-block; transition: transform .2s; }
+    .syl-tone { font-size: .72rem; font-weight: 600; margin-top: 4px; }
+    .syl-target { font-size: .8rem; color: var(--muted); margin-top: 2px; }
+    .syl-hint { font-size: .75rem; color: var(--muted); font-style: italic; }
+
+    /* ── Suggestions dropdown ────────────── */
+    .suggestions { background: var(--card); border: 1px solid #e2e8f0; border-radius: var(--radius); max-height: 200px; overflow-y: auto; display: none; margin-bottom: 12px; box-shadow: 0 4px 12px rgba(0,0,0,.08); }
+    .suggestions.show { display: block; }
+    .sug-item { padding: 10px 16px; cursor: pointer; font-size: .95rem; border-bottom: 1px solid #f1f5f9; }
+    .sug-item:hover, .sug-item.active { background: var(--pri-light); }
+    .sug-item:last-child { border-bottom: none; }
+
+    /* ── Settings Modal ──────────────────── */
+    .modal-bg { position: fixed; inset: 0; background: rgba(0,0,0,.4); z-index: 100; display: none; align-items: center; justify-content: center; }
+    .modal-bg.show { display: flex; }
+    .modal { background: var(--card); padding: 24px; border-radius: var(--radius); width: 90%; max-width: 400px; }
+    .modal h3 { margin-bottom: 16px; }
+    .modal label { display: block; font-size: .85rem; font-weight: 600; margin-bottom: 4px; color: var(--muted); }
+    .modal input { width: 100%; padding: 10px; border: 1px solid #e2e8f0; border-radius: 8px; font-size: .95rem; margin-bottom: 12px; }
+    .modal .btn-row { display: flex; gap: 8px; justify-content: flex-end; }
+    .modal button { padding: 8px 20px; border-radius: 8px; border: none; cursor: pointer; font-weight: 600; }
+    .btn-save { background: var(--pri); color: #fff; }
+    .btn-cancel { background: #f1f5f9; color: var(--text); }
+
+    /* ── Loading / Error ─────────────────── */
+    .loading { text-align: center; padding: 20px; color: var(--muted); display: none; }
+    .loading.show { display: block; }
+    .spinner { display: inline-block; width: 20px; height: 20px; border: 3px solid #e2e8f0; border-top-color: var(--pri); border-radius: 50%; animation: spin .6s linear infinite; margin-right: 8px; vertical-align: middle; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .error-msg { color: var(--red); font-size: .9rem; margin-top: 8px; display: none; }
+    .error-msg.show { display: block; }
+
+    /* ── Phrase count ─────────────────────── */
+    .phrase-count { text-align: center; font-size: .75rem; color: var(--muted); margin-top: 16px; }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="logo">HowDoISay</div>
+    <button class="gear-btn" onclick="toggleSettings()" title="Settings">⚙️</button>
+  </header>
+
+  <div class="tabs">
+    <div class="tab active" data-lang="vi" onclick="switchLang('vi')">🇻🇳 Vietnamese</div>
+    <div class="tab" data-lang="zh" onclick="switchLang('zh')">🇨🇳 Chinese</div>
+  </div>
+
+  <main>
+    <div class="loading" id="loading">
+      <span class="spinner"></span> Translating with AI...
+    </div>
+
+    <div class="result-card" id="resultCard"></div>
+
+    <div class="error-msg" id="errorMsg"></div>
+
+    <div class="search-wrap">
+      <span class="search-icon">🔍</span>
+      <input class="search-input" id="searchInput" type="text" placeholder="Type English phrase..." autocomplete="off" autocapitalize="off" spellcheck="false">
+      <button class="clear-btn" id="clearBtn" onclick="clearInput()">✕</button>
+    </div>
+
+    <div class="suggestions" id="suggestions"></div>
+
+    <div class="chips" id="chips"></div>
+
+    <div class="phrase-count" id="phraseCount"></div>
+  </main>
+
+  <!-- Settings Modal -->
+  <div class="modal-bg" id="settingsModal">
+    <div class="modal">
+      <h3>⚙️ Settings</h3>
+      <label>OpenRouter API Key</label>
+      <input type="password" id="apiKeyInput" placeholder="sk-or-...">
+      <label>OpenRouter Model ID</label>
+      <input type="text" id="modelIdInput" placeholder="google/gemini-2.0-flash-001">
+      <p style="font-size:.78rem; color:var(--muted); margin-bottom:12px;">
+        Optional. Without an API key, only the built-in 200+ phrases work.<br>
+        With a key, any English phrase gets translated on the fly.
+      </p>
+      <div class="btn-row">
+        <button class="btn-cancel" onclick="toggleSettings()">Cancel</button>
+        <button class="btn-save" onclick="saveSettings()">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Scripts -->
+  <script src="engine.js"></script>
+  <script src="dict-vi.js"></script>
+  <script src="dict-zh.js"></script>
+  <script>
+    // ── State ──────────────────────────────
+    let currentLang = 'vi';
+    let openrouter_api_key = '';
+    let openrouter_model_id = '';
+    let debounceTimer = null;
+
+    // Load saved settings
+    try {
+      openrouter_api_key = localStorage.getItem('openrouter_api_key') || '';
+      openrouter_model_id = localStorage.getItem('openrouter_model_id') || '';
+    } catch(e) {}
+
+    // ── Init ──────────────────────────────
+    function init() {
+      showChips();
+      showPhraseCount();
+      document.getElementById('searchInput').addEventListener('input', onInput);
+      document.getElementById('searchInput').addEventListener('keydown', onKeydown);
+    }
+
+    // ── Language Switching ─────────────────
+    function switchLang(lang) {
+      currentLang = lang;
+      document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.lang === lang));
+      clearInput();
+      showChips();
+      showPhraseCount();
+    }
+
+    // ── Chips ─────────────────────────────
+    function showChips() {
+      const common = [
+        'hello','thank you','goodbye','how much','where is the bathroom',
+        'beer','water','delicious','help','i don\'t understand',
+        'yes','no','excuse me','check please','too expensive'
+      ];
+      const el = document.getElementById('chips');
+      el.innerHTML = common.map(c => `<button class="chip" onclick="selectPhrase('${c}')">${c}</button>`).join('');
+    }
+
+    function showPhraseCount() {
+      const count = Engine.allKeys(currentLang).length;
+      document.getElementById('phraseCount').textContent = `${count} phrases loaded offline • ${currentLang === 'vi' ? 'Vietnamese' : 'Chinese'}`;
+    }
+
+    // ── Input Handling ────────────────────
+    function onInput() {
+      const val = document.getElementById('searchInput').value;
+      document.getElementById('clearBtn').style.display = val ? 'block' : 'none';
+      document.getElementById('errorMsg').className = 'error-msg';
+
+      clearTimeout(debounceTimer);
+      if (!val.trim()) {
+        hideSuggestions();
+        document.getElementById('resultCard').className = 'result-card';
+        return;
+      }
+      debounceTimer = setTimeout(() => processInput(val), 50);
+    }
+
+    function onKeydown(e) {
+      const sugs = document.getElementById('suggestions');
+      const items = sugs.querySelectorAll('.sug-item');
+      const active = sugs.querySelector('.sug-item.active');
+      let idx = -1;
+      items.forEach((it, i) => { if (it.classList.contains('active')) idx = i; });
+
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        if (idx < items.length - 1) { items.forEach(i => i.classList.remove('active')); items[idx+1].classList.add('active'); }
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        if (idx > 0) { items.forEach(i => i.classList.remove('active')); items[idx-1].classList.add('active'); }
+      } else if (e.key === 'Enter') {
+        e.preventDefault();
+        if (active) { selectPhrase(active.dataset.phrase); }
+        else { processInput(document.getElementById('searchInput').value); hideSuggestions(); }
+      }
+    }
+
+    // ── Suggestions ───────────────────────
+    function showSuggestions(phrase) {
+      const keys = Engine.allKeys(currentLang);
+      const q = phrase.toLowerCase().trim();
+      const matches = keys.filter(k => k.includes(q) || q.split(' ').some(w => k.includes(w))).slice(0, 8);
+
+      const el = document.getElementById('suggestions');
+      if (matches.length === 0) { hideSuggestions(); return; }
+      el.innerHTML = matches.map(m => `<div class="sug-item" data-phrase="${m}" onclick="selectPhrase('${m.replace(/'/g, "\\'")}')">${m}</div>`).join('');
+      el.className = 'suggestions show';
+    }
+
+    function hideSuggestions() {
+      document.getElementById('suggestions').className = 'suggestions';
+    }
+
+    // ── Process ───────────────────────────
+    async function processInput(phrase) {
+      if (!phrase.trim()) return;
+
+      showSuggestions(phrase);
+
+      const card = document.getElementById('resultCard');
+      const loading = document.getElementById('loading');
+      const errorEl = document.getElementById('errorMsg');
+
+      // Try exact local match only (no fuzzy — wrong matches are worse than no match)
+      const local = Engine.lookup(phrase, currentLang);
+      if (local) {
+        card.innerHTML = badge('local') + Engine.renderResult(local, currentLang);
+        card.className = 'result-card show';
+        loading.className = 'loading';
+        return;
+      }
+
+      // API fallback
+      if (openrouter_api_key && openrouter_model_id) {
+        loading.className = 'loading show';
+        card.className = 'result-card';
+        try {
+          const result = await Engine.apiTranslate(phrase, currentLang, openrouter_api_key, openrouter_model_id);
+          card.innerHTML = badge('api') + Engine.renderResult(result, currentLang);
+          card.className = 'result-card show';
+        } catch(err) {
+          errorEl.textContent = 'API error: ' + err.message;
+          errorEl.className = 'error-msg show';
+        }
+        loading.className = 'loading';
+      } else {
+        errorEl.textContent = 'Phrase not in dictionary. Add an OpenRouter API key in ⚙️ Settings to translate anything.';
+        errorEl.className = 'error-msg show';
+        card.className = 'result-card';
+      }
+    }
+
+    function badge(type, matchedKey) {
+      if (type === 'local') return '<span class="res-badge badge-local">⚡ Offline</span>';
+      if (type === 'api') return '<span class="res-badge badge-api">🌐 AI Translated</span>';
+      if (type === 'fuzzy') return `<span class="res-badge badge-fuzzy">≈ Matched: "${matchedKey}"</span>`;
+      return '';
+    }
+
+    // ── Select Phrase ─────────────────────
+    function selectPhrase(phrase) {
+      document.getElementById('searchInput').value = phrase;
+      document.getElementById('clearBtn').style.display = 'block';
+      hideSuggestions();
+      processInput(phrase);
+    }
+
+    // ── Clear ─────────────────────────────
+    function clearInput() {
+      document.getElementById('searchInput').value = '';
+      document.getElementById('clearBtn').style.display = 'none';
+      document.getElementById('resultCard').className = 'result-card';
+      document.getElementById('errorMsg').className = 'error-msg';
+      document.getElementById('loading').className = 'loading';
+      hideSuggestions();
+      document.getElementById('searchInput').focus();
+    }
+
+    // ── Settings ──────────────────────────
+    function toggleSettings() {
+      const m = document.getElementById('settingsModal');
+      const show = !m.classList.contains('show');
+      m.className = show ? 'modal-bg show' : 'modal-bg';
+      if (show) {
+        document.getElementById('apiKeyInput').value = openrouter_api_key;
+        document.getElementById('modelIdInput').value = openrouter_model_id;
+      }
+    }
+
+    function saveSettings() {
+      openrouter_api_key = document.getElementById('apiKeyInput').value.trim();
+      openrouter_model_id = document.getElementById('modelIdInput').value.trim();
+      try {
+        localStorage.setItem('openrouter_api_key', openrouter_api_key);
+        localStorage.setItem('openrouter_model_id', openrouter_model_id);
+      } catch(e) {}
+      toggleSettings();
+    }
+
+    // ── Boot ──────────────────────────────
+    init();
+  </script>
+</body>
+</html>
