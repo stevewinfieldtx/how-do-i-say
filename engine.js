@@ -168,10 +168,30 @@ var Engine = {
   allKeys(lang) { return Object.keys(this._dict(lang)); },
 
   // ── OpenRouter API Fallback ─────────────────────────────────
+  // Try server proxy first (Vercel env vars), fall back to direct call (user key)
 
   async apiTranslate(phrase, lang, apiKey, modelId) {
-    const langName = lang === 'vi' ? 'Vietnamese' : 'Chinese Mandarin';
+    // 1. Try server-side proxy (uses Vercel env vars — no key needed client-side)
+    try {
+      const proxyResp = await fetch('/api/translate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phrase, lang })
+      });
+      if (proxyResp.ok) {
+        return await proxyResp.json();
+      }
+      // If proxy returned an error, fall through to direct call
+    } catch (e) {
+      // Proxy not available (running locally, not on Vercel), fall through
+    }
 
+    // 2. Fall back to direct OpenRouter call with user-provided key
+    if (!apiKey || !modelId) {
+      throw new Error('No API available. Add an OpenRouter key in Settings or deploy to Vercel with env vars.');
+    }
+
+    const langName = lang === 'vi' ? 'Vietnamese' : 'Chinese Mandarin';
     const resp = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -185,12 +205,11 @@ var Engine = {
           role: 'system',
           content: `You translate English to ${langName} and provide dead-simple pronunciation help using English words or syllables — NOT IPA. Return ONLY valid JSON (no markdown fences).
 Format: {"t":"${lang === 'zh' ? 'Chinese characters' : 'Vietnamese text with diacritics'}"${lang === 'zh' ? ',"p":"pinyin with tone marks"' : ''},"s":[{"t":"syllable with tone marks","m":"SIMPLE English mnemonic","h":"like [English word]"}]}
-Examples of good mnemonics:
-- nǐ → m:"Knee", h:"like knee"
-- hǎo → m:"How", h:"like how"
-- xin → m:"Sin", h:"like sin"
-- chào → m:"Chow", h:"like chow mein"
-Keep mnemonics to real English words or obvious parts of words. One entry per syllable.`
+Rules for mnemonics:
+- Use REAL English words: "Knee", "How", "Boo", "Joe", "Kong"
+- Or known words with modification: "'fun' without the N", "'shed' without the D"
+- NEVER made-up syllables like "Bahn", "Hwey", "Tahng"
+One entry per syllable.`
         }, {
           role: 'user',
           content: `Translate: "${phrase}"`

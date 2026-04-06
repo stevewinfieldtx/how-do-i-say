@@ -268,24 +268,18 @@
         return;
       }
 
-      // API fallback
-      if (openrouter_api_key && openrouter_model_id) {
-        loading.className = 'loading show';
-        card.className = 'result-card';
-        try {
-          const result = await Engine.apiTranslate(phrase, currentLang, openrouter_api_key, openrouter_model_id);
-          card.innerHTML = badge('api') + Engine.renderResult(result, currentLang);
-          card.className = 'result-card show';
-        } catch(err) {
-          errorEl.textContent = 'API error: ' + err.message;
-          errorEl.className = 'error-msg show';
-        }
-        loading.className = 'loading';
-      } else {
-        errorEl.textContent = 'Phrase not in dictionary. Add an OpenRouter API key in ⚙️ Settings to translate anything.';
+      // API fallback — tries Vercel server proxy first, then direct with user key
+      loading.className = 'loading show';
+      card.className = 'result-card';
+      try {
+        const result = await Engine.apiTranslate(phrase, currentLang, openrouter_api_key, openrouter_model_id);
+        card.innerHTML = badge('api') + Engine.renderResult(result, currentLang);
+        card.className = 'result-card show';
+      } catch(err) {
+        errorEl.textContent = err.message;
         errorEl.className = 'error-msg show';
-        card.className = 'result-card';
       }
+      loading.className = 'loading';
     }
 
     function badge(type, matchedKey) {
