@@ -94,6 +94,20 @@
     /* ── Phrase count ─────────────────────── */
     .phrase-count { text-align: center; font-size: .75rem; color: var(--muted); margin-top: 16px; }
 
+    /* ── Direction Bar ────────────────────── */
+    .direction-bar { display: flex; align-items: center; justify-content: center; gap: 12px; padding: 10px 16px; background: var(--pri-light); }
+    .dir-label { font-size: .9rem; font-weight: 600; color: var(--pri); }
+    .dir-swap { background: var(--card); border: 1px solid var(--pri); color: var(--pri); padding: 4px 14px; border-radius: 20px; font-size: .82rem; font-weight: 600; cursor: pointer; }
+    .dir-swap:hover { background: var(--pri); color: #fff; }
+
+    /* ── Reverse result ──────────────────── */
+    .rev-english { font-size: 1.5rem; font-weight: 700; margin-bottom: 12px; color: var(--text); }
+    .rev-row { display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; }
+    .rev-block { text-align: center; padding: 8px 12px; background: var(--pri-light); border-radius: 8px; min-width: 70px; }
+    .rev-word { font-size: 1rem; font-weight: 600; color: var(--text); margin-bottom: 4px; }
+    .rev-mnemonic { font-size: 1.3rem; font-weight: 800; color: var(--pri); }
+    .rev-hint { font-size: .75rem; color: var(--muted); font-style: italic; margin-top: 2px; }
+
     /* ── QR Footer ────────────────────────── */
     .qr-footer { text-align: center; padding: 24px 16px 32px; border-top: 1px solid #e2e8f0; margin-top: 24px; }
     .qr-footer svg { width: 120px; height: 120px; }
@@ -112,6 +126,11 @@
   <div class="tabs">
     <div class="tab active" data-lang="vi" onclick="switchLang('vi')">🇻🇳 Vietnamese</div>
     <div class="tab" data-lang="zh" onclick="switchLang('zh')">🇨🇳 Chinese</div>
+  </div>
+
+  <div class="direction-bar" id="directionBar">
+    <span class="dir-label" id="dirLabel">English → Vietnamese</span>
+    <button class="dir-swap" onclick="swapDirection()">⇄ Swap</button>
   </div>
 
   <main>
@@ -167,6 +186,7 @@
   <script>
     // ── State ──────────────────────────────
     let currentLang = 'vi';
+    let currentDir = 'forward'; // 'forward' = EN→target, 'reverse' = target→EN
     let openrouter_api_key = '';
     let openrouter_model_id = '';
     let debounceTimer = null;
@@ -179,6 +199,7 @@
 
     // ── Init ──────────────────────────────
     function init() {
+      updateDirectionUI();
       showChips();
       showPhraseCount();
       document.getElementById('searchInput').addEventListener('input', onInput);
@@ -190,24 +211,60 @@
       currentLang = lang;
       document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.lang === lang));
       clearInput();
+      updateDirectionUI();
       showChips();
       showPhraseCount();
     }
 
+    // ── Direction ─────────────────────────
+    function swapDirection() {
+      currentDir = currentDir === 'forward' ? 'reverse' : 'forward';
+      clearInput();
+      updateDirectionUI();
+      showChips();
+      showPhraseCount();
+    }
+
+    function updateDirectionUI() {
+      const langName = currentLang === 'vi' ? 'Vietnamese' : 'Chinese';
+      const label = currentDir === 'forward'
+        ? `English → ${langName}`
+        : `${langName} → English`;
+      document.getElementById('dirLabel').textContent = label;
+
+      const placeholder = currentDir === 'forward'
+        ? 'Type English phrase...'
+        : `Type ${langName} text...`;
+      document.getElementById('searchInput').placeholder = placeholder;
+    }
+
     // ── Chips ─────────────────────────────
     function showChips() {
-      const common = [
-        'hello','thank you','goodbye','how much','where is the bathroom',
-        'beer','water','delicious','help','i don\'t understand',
-        'yes','no','excuse me','check please','too expensive'
-      ];
       const el = document.getElementById('chips');
-      el.innerHTML = common.map(c => `<button class="chip" onclick="selectPhrase('${c}')">${c}</button>`).join('');
+      if (currentDir === 'forward') {
+        const common = [
+          'hello','thank you','goodbye','how much','where is the bathroom',
+          'beer','water','delicious','help','i don\'t understand',
+          'yes','no','excuse me','check please','too expensive'
+        ];
+        el.innerHTML = common.map(c => `<button class="chip" onclick="selectPhrase('${c}')">${c}</button>`).join('');
+      } else {
+        // Reverse: show sample phrases in the target language
+        const viSamples = ['xin chào','cảm ơn','bao nhiêu','bia','nước','phở','tạm biệt','giúp tôi'];
+        const zhSamples = ['你好','谢谢','多少钱','啤酒','水','再见','救命','厕所在哪'];
+        const samples = currentLang === 'vi' ? viSamples : zhSamples;
+        el.innerHTML = samples.map(c => `<button class="chip" onclick="selectPhrase('${c}')">${c}</button>`).join('');
+      }
     }
 
     function showPhraseCount() {
-      const count = Engine.allKeys(currentLang).length;
-      document.getElementById('phraseCount').textContent = `${count} phrases loaded offline • ${currentLang === 'vi' ? 'Vietnamese' : 'Chinese'}`;
+      const langName = currentLang === 'vi' ? 'Vietnamese' : 'Chinese';
+      if (currentDir === 'forward') {
+        const count = Engine.allKeys(currentLang).length;
+        document.getElementById('phraseCount').textContent = `${count} phrases loaded offline • ${langName}`;
+      } else {
+        document.getElementById('phraseCount').textContent = `${langName} → English • Powered by AI`;
+      }
     }
 
     // ── Input Handling ────────────────────
@@ -247,6 +304,7 @@
 
     // ── Suggestions ───────────────────────
     function showSuggestions(phrase) {
+      if (currentDir === 'reverse') { hideSuggestions(); return; } // no suggestions for reverse
       const keys = Engine.allKeys(currentLang);
       const q = phrase.toLowerCase().trim();
       const matches = keys.filter(k => k.includes(q) || q.split(' ').some(w => k.includes(w))).slice(0, 8);
@@ -265,11 +323,29 @@
     async function processInput(phrase) {
       if (!phrase.trim()) return;
 
-      showSuggestions(phrase);
-
       const card = document.getElementById('resultCard');
       const loading = document.getElementById('loading');
       const errorEl = document.getElementById('errorMsg');
+
+      if (currentDir === 'reverse') {
+        // Reverse: target language → English (always API)
+        hideSuggestions();
+        loading.className = 'loading show';
+        card.className = 'result-card';
+        try {
+          const result = await Engine.apiReverseTranslate(phrase, currentLang, openrouter_api_key, openrouter_model_id);
+          card.innerHTML = badge('api') + Engine.renderReverseResult(result, currentLang);
+          card.className = 'result-card show';
+        } catch(err) {
+          errorEl.textContent = err.message;
+          errorEl.className = 'error-msg show';
+        }
+        loading.className = 'loading';
+        return;
+      }
+
+      // Forward: English → target language
+      showSuggestions(phrase);
 
       // Try exact local match only (no fuzzy — wrong matches are worse than no match)
       const local = Engine.lookup(phrase, currentLang);

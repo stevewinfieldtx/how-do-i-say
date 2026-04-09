@@ -17,12 +17,40 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: 'Server missing OPENROUTER_API_KEY or OPENROUTER_MODEL_ID env vars' });
   }
 
-  const { phrase, lang } = req.body;
+  const { phrase, lang, direction } = req.body;
   if (!phrase || !lang) {
     return res.status(400).json({ error: 'Missing phrase or lang in request body' });
   }
 
   const langName = lang === 'vi' ? 'Vietnamese' : 'Chinese Mandarin';
+  const isReverse = direction === 'reverse';
+
+  // Build the appropriate prompt based on direction
+  let systemPrompt, userPrompt;
+
+  if (isReverse) {
+    const mnemonicLang = lang === 'vi'
+      ? 'Vietnamese phonetic approximations'
+      : 'Chinese characters that approximate the English sounds (like 三克油 for "thank you")';
+
+    systemPrompt = `A ${langName} speaker wants to say something in English. Translate their input to English, then provide ${mnemonicLang} so they know how to PRONOUNCE the English words.
+Return ONLY valid JSON (no markdown fences).
+Format: {"e":"English translation","s":[{"word":"English word","m":"${lang === 'zh' ? 'Chinese characters' : 'Vietnamese'} mnemonic","h":"${lang === 'zh' ? 'pinyin' : 'pronunciation note'}"}]}
+${lang === 'zh' ? 'Example: "thank you" → word:"Thank you", m:"三克油", h:"sān kè yóu"' : 'Example: "thank you" → word:"Thank you", m:"then-kiu", h:"đen-kiu"'}
+Keep it natural — use ${lang === 'zh' ? 'characters' : 'Vietnamese syllables'} that a native speaker would actually recognize and use.`;
+    userPrompt = phrase;
+  } else {
+    systemPrompt = `You translate English to ${langName} and provide dead-simple pronunciation help using English words or syllables — NOT IPA. Return ONLY valid JSON (no markdown fences).
+Format: {"t":"${lang === 'zh' ? 'Chinese characters' : 'Vietnamese text with diacritics'}"${lang === 'zh' ? ',"p":"pinyin with tone marks"' : ''},"s":[{"t":"syllable with tone marks","m":"SIMPLE English mnemonic","h":"like [English word]"}]}
+Rules for mnemonics:
+- Use REAL English words or obvious parts of words — the reader must already know how to say it
+- Pattern A (best): m is a real word — "Knee", "How", "Boo", "Joe", "Kong"
+- Pattern B: a known word with modification — "'fun' without the N", "'shed' without the D"
+- Pattern C: two known things — "'gee' then 'N'", "'she' + 'way'"
+- NEVER use made-up syllables like "Bahn", "Hwey", "Tahng"
+- One entry per syllable.`;
+    userPrompt = `Translate: "${phrase}"`;
+  }
 
   try {
     const resp = await fetch('https://openrouter.ai/api/v1/chat/completions', {
@@ -36,18 +64,10 @@ export default async function handler(req, res) {
         model: modelId,
         messages: [{
           role: 'system',
-          content: `You translate English to ${langName} and provide dead-simple pronunciation help using English words or syllables — NOT IPA. Return ONLY valid JSON (no markdown fences).
-Format: {"t":"${lang === 'zh' ? 'Chinese characters' : 'Vietnamese text with diacritics'}"${lang === 'zh' ? ',"p":"pinyin with tone marks"' : ''},"s":[{"t":"syllable with tone marks","m":"SIMPLE English mnemonic","h":"like [English word]"}]}
-Rules for mnemonics:
-- Use REAL English words or obvious parts of words — the reader must already know how to say it
-- Pattern A (best): m is a real word — "Knee", "How", "Boo", "Joe", "Kong"
-- Pattern B: a known word with modification — "'fun' without the N", "'shed' without the D"
-- Pattern C: two known things — "'gee' then 'N'", "'she' + 'way'"
-- NEVER use made-up syllables like "Bahn", "Hwey", "Tahng"
-- One entry per syllable.`
+          content: systemPrompt
         }, {
           role: 'user',
-          content: `Translate: "${phrase}"`
+          content: userPrompt
         }],
         temperature: 0.2,
         max_tokens: 600

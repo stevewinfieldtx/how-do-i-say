@@ -227,6 +227,76 @@ One entry per syllable.`
     return JSON.parse(jsonMatch[0]);
   },
 
+  // ── Reverse Translation (Target → English) ──────────────────
+
+  async apiReverseTranslate(phrase, lang, apiKey, modelId) {
+    const langName = lang === 'vi' ? 'Vietnamese' : 'Chinese Mandarin';
+    const mnemonicLang = lang === 'vi' ? 'Vietnamese phonetic approximations' : 'Chinese characters that approximate the English sounds (like 三克油 for "thank you")';
+
+    // 1. Try server-side proxy first
+    try {
+      const proxyResp = await fetch('/api/translate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phrase, lang, direction: 'reverse' })
+      });
+      if (proxyResp.ok) return await proxyResp.json();
+    } catch (e) {}
+
+    // 2. Fall back to direct call
+    if (!apiKey || !modelId) {
+      throw new Error('No API available. Deploy to Vercel with env vars or add a key in Settings.');
+    }
+
+    const resp = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+        'HTTP-Referer': 'https://howdoisay.app'
+      },
+      body: JSON.stringify({
+        model: modelId,
+        messages: [{
+          role: 'system',
+          content: `A ${langName} speaker wants to say something in English. Translate their input to English, then provide ${mnemonicLang} so they know how to PRONOUNCE the English words.
+Return ONLY valid JSON (no markdown fences).
+Format: {"e":"English translation","s":[{"word":"English word","m":"${lang === 'zh' ? 'Chinese characters' : 'Vietnamese'} mnemonic","h":"${lang === 'zh' ? 'pinyin' : 'pronunciation note'}"}]}
+${lang === 'zh' ? 'Example: "thank you" → word:"Thank you", m:"三克油", h:"sān kè yóu"' : 'Example: "thank you" → word:"Thank you", m:"then-kiu", h:"đen-kiu"'}
+Keep it natural — use ${lang === 'zh' ? 'characters' : 'Vietnamese syllables'} that a native speaker would actually recognize and use.`
+        }, {
+          role: 'user',
+          content: phrase
+        }],
+        temperature: 0.2,
+        max_tokens: 600
+      })
+    });
+
+    if (!resp.ok) throw new Error(`API error: ${resp.status}`);
+    const data = await resp.json();
+    const content = data.choices[0].message.content;
+    const jsonMatch = content.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) throw new Error('Could not parse API response');
+    return JSON.parse(jsonMatch[0]);
+  },
+
+  // ── Render Reverse Result ──────────────────────────────────
+
+  renderReverseResult(entry, lang) {
+    let html = `<div class="rev-english">${entry.e}</div>`;
+    html += `<div class="rev-row">`;
+    for (const s of entry.s) {
+      html += `<div class="rev-block">`;
+      html += `<div class="rev-word">${s.word}</div>`;
+      html += `<div class="rev-mnemonic">${s.m}</div>`;
+      html += `<div class="rev-hint">${s.h}</div>`;
+      html += `</div>`;
+    }
+    html += `</div>`;
+    return html;
+  },
+
   // ── Main Entry Point ────────────────────────────────────────
 
   async process(phrase, lang, apiKey, modelId) {
