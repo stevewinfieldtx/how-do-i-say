@@ -174,7 +174,7 @@ var Engine = {
   // Try server proxy first (Vercel env vars), fall back to direct call (user key)
 
   async apiTranslate(phrase, lang, apiKey, modelId) {
-    // 1. Try server-side proxy (uses Vercel env vars — no key needed client-side)
+    // 1. Try server-side proxy
     try {
       const proxyResp = await fetch('/api/translate', {
         method: 'POST',
@@ -184,14 +184,20 @@ var Engine = {
       if (proxyResp.ok) {
         return await proxyResp.json();
       }
-      // If proxy returned an error, fall through to direct call
+      // Surface the server error instead of silently falling through
+      const errData = await proxyResp.json().catch(() => ({}));
+      console.error('Proxy error:', proxyResp.status, errData);
+      if (!apiKey && !modelId) {
+        throw new Error(errData.error || `Server error: ${proxyResp.status}`);
+      }
     } catch (e) {
-      // Proxy not available (running locally, not on Vercel), fall through
+      if (e.message && !e.message.includes('fetch')) throw e;
+      // Proxy not available (running locally), fall through
     }
 
     // 2. Fall back to direct Cerebras call with user-provided key
     if (!apiKey || !modelId) {
-      throw new Error('No API available. Add a Cerebras key in Settings or deploy to Vercel with env vars.');
+      throw new Error('No API available. Add a Cerebras key in Settings or set env vars on your server.');
     }
 
     const langName = lang === 'vi' ? 'Vietnamese' : 'Chinese Mandarin';
@@ -244,11 +250,18 @@ One entry per syllable.`
         body: JSON.stringify({ phrase, lang, direction: 'reverse' })
       });
       if (proxyResp.ok) return await proxyResp.json();
-    } catch (e) {}
+      const errData = await proxyResp.json().catch(() => ({}));
+      console.error('Proxy error:', proxyResp.status, errData);
+      if (!apiKey && !modelId) {
+        throw new Error(errData.error || `Server error: ${proxyResp.status}`);
+      }
+    } catch (e) {
+      if (e.message && !e.message.includes('fetch')) throw e;
+    }
 
     // 2. Fall back to direct call
     if (!apiKey || !modelId) {
-      throw new Error('No API available. Deploy to Vercel with env vars or add a key in Settings.');
+      throw new Error('No API available. Add a Cerebras key in Settings or set env vars on your server.');
     }
 
     const resp = await fetch('https://api.cerebras.ai/v1/chat/completions', {
