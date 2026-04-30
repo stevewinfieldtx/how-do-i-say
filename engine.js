@@ -103,6 +103,9 @@ var Engine = {
   },
 
   renderResult(entry, lang) {
+    if (!entry || !Array.isArray(entry.s)) {
+      return `<div class="res-quick">Translation: <strong>${entry?.t || 'No result'}</strong></div>`;
+    }
     const detect = lang === 'vi' ? this.detectViTone.bind(this) : this.detectZhTone.bind(this);
 
     // Quick mnemonic line (top)
@@ -220,7 +223,8 @@ One entry per syllable.`
 
     if (!resp.ok) throw new Error(`API error: ${resp.status}`);
     const data = await resp.json();
-    const content = data.choices[0].message.content;
+    let content = data.choices[0].message.content;
+    content = content.replace(/<think>[\s\S]*?<\/think>/g, '').trim();
     const jsonMatch = content.match(/\{[\s\S]*\}/);
     if (!jsonMatch) throw new Error('Could not parse API response');
     return JSON.parse(jsonMatch[0]);
@@ -273,8 +277,9 @@ Keep it natural — use ${lang === 'zh' ? 'characters' : 'Vietnamese syllables'}
 
     if (!resp.ok) throw new Error(`API error: ${resp.status}`);
     const data = await resp.json();
-    const content = data.choices[0].message.content;
-    const jsonMatch = content.match(/\{[\s\S]*\}/);
+    let rcontent = data.choices[0].message.content;
+    rcontent = rcontent.replace(/<think>[\s\S]*?<\/think>/g, '').trim();
+    const jsonMatch = rcontent.match(/\{[\s\S]*\}/);
     if (!jsonMatch) throw new Error('Could not parse API response');
     return JSON.parse(jsonMatch[0]);
   },
@@ -282,6 +287,9 @@ Keep it natural — use ${lang === 'zh' ? 'characters' : 'Vietnamese syllables'}
   // ── Render Reverse Result ──────────────────────────────────
 
   renderReverseResult(entry, lang) {
+    if (!entry || !Array.isArray(entry.s)) {
+      return `<div class="rev-english">${entry?.e || 'No result'}</div>`;
+    }
     let html = `<div class="rev-english">${entry.e}</div>`;
     html += `<div class="rev-row">`;
     for (const s of entry.s) {

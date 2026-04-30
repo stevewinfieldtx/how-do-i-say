@@ -78,14 +78,22 @@ Rules for mnemonics:
     }
 
     const data = await resp.json();
-    const content = data.choices[0].message.content;
+    let content = data.choices[0].message.content;
+    // Strip Qwen thinking tags if present
+    content = content.replace(/<think>[\s\S]*?<\/think>/g, '').trim();
     const jsonMatch = content.match(/\{[\s\S]*\}/);
 
     if (!jsonMatch) {
-      return res.status(500).json({ error: 'Could not parse AI response' });
+      return res.status(500).json({ error: 'Could not parse AI response', raw: content });
     }
 
-    return res.status(200).json(JSON.parse(jsonMatch[0]));
+    const parsed = JSON.parse(jsonMatch[0]);
+    // Ensure 's' array exists
+    if (!Array.isArray(parsed.s)) {
+      return res.status(500).json({ error: 'AI response missing syllable data', raw: content });
+    }
+
+    return res.status(200).json(parsed);
   } catch (err) {
     return res.status(500).json({ error: err.message });
   }
